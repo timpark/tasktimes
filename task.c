@@ -50,8 +50,10 @@ void printUsage(char *cmd)
 	printf("%s resume           : Restart previous task\n", cmd);
 	printf("%s rename \"task\"    : Change name of current task to \"task\"\n", cmd);
 	printf("%s delete           : Delete current task\n", cmd);
-	printf("%s times            : Give report of tasks\n", cmd);
-	printf("%s times [file]     : Give report of tasks in another file\n", cmd);
+	printf("%s times            : Give report of tasks grouped by project (or \"ptimes\")\n", cmd);
+	printf("%s times [file]     : Give report of tasks in another file grouped by project\n", cmd);
+	printf("%s dtimes           : Give report of tasks grouped by day\n", cmd);
+	printf("%s dtimes [file]    : Give report of tasks in another file grouped by day\n", cmd);
 	printf(" Current default file : %s\n", FILENAME);
 }
 
@@ -235,7 +237,7 @@ double reportProject(char *project)
 }
 
 //*** Generate a report of all projects.
-void printReport()
+void printProjectReport()
 {
 	struct Task *task;
 	char *project;
@@ -257,6 +259,50 @@ void printReport()
 	}
 	if (numProjects > 1)
 		printf("     %2d Projects Total %3d:%02d:%02d\n", numProjects,
+			(int)(totalTime/3600), (int)(totalTime/60)%60, (int)totalTime%60);
+}
+
+//*** Print all tasks for a given day and return the total time.
+double reportDay(char *day)
+{
+	struct Task *task;
+	double totalTime = 0;
+	printf("\n");
+	for (task = head.next; task != &tail; task = task->next)
+		if (strncmp(task->startTime, day, 10) == 0)
+		{
+			printTask(stdout, task, TOTALWPRJ);
+			totalTime += task->taskTime;
+			task->reported = true;
+		}
+	printf("                 Total %3d:%02d:%02d\n",
+		(int)(totalTime/3600), (int)(totalTime/60)%60, (int)totalTime%60);
+	return totalTime;
+}
+
+//*** Generate a report of all days.
+void printDayReport()
+{
+	struct Task *task;
+	char day[11] = "yyyy/mm/dd";
+	int numDays = 0;
+	double totalTime = 0;
+	while (true)
+	{
+		day[0] = 0;
+		for (task = head.next; task != &tail; task = task->next)
+			if (task->reported == false)
+			{
+				strncpy(day, task->startTime, 10);
+				break;
+			}
+		if (day[0] == 0)
+			break;
+		totalTime += reportDay(day);
+		numDays++;
+	}
+	if (numDays > 1)
+		printf("         %2d Days Total %3d:%02d:%02d\n", numDays,
 			(int)(totalTime/3600), (int)(totalTime/60)%60, (int)totalTime%60);
 }
 
@@ -390,7 +436,7 @@ int main(int argc, char **argv)
 		exit(0);
 	}
 
-	if ((argc > 2) && (strcmp(argv[1], "times") == 0))
+	if ((argc > 2) && ((strcmp(argv[1], "times") == 0) || (strcmp(argv[1], "ptimes") == 0) || (strcmp(argv[1], "dtimes") == 0)))
 		filename = argv[2];
 	readTasks(filename);
 	// If there's at least one item in list and last item doesn't have ending time
@@ -570,7 +616,7 @@ int main(int argc, char **argv)
 			free(currentTask);
 			writeTasks(filename);
 		}
-		else if (strcmp(argv[1], "times") == 0)
+		else if ((strcmp(argv[1], "times") == 0) || (strcmp(argv[1], "ptimes") == 0))
 		{
 			// Give current task an end time for the report
 			if (currentTask)
@@ -578,7 +624,17 @@ int main(int argc, char **argv)
 				strcpy(currentTask->endTime, now);
 				calculateTaskTime(currentTask);
 			}
-			printReport();
+			printProjectReport();
+		}
+		else if (strcmp(argv[1], "dtimes") == 0)
+		{
+			// Give current task an end time for the report
+			if (currentTask)
+			{
+				strcpy(currentTask->endTime, now);
+				calculateTaskTime(currentTask);
+			}
+			printDayReport();
 		}
 		else
 			addTask(filename, time1, argv[1], currentTask);
